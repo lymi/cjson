@@ -28,8 +28,11 @@ char symbolstack_pop(symbolstack_t *st) {
   return st->symbolstack[--st->top];
 }
 
-void symbolstack_del(symbolstack_t *st) {
+void symbolstack_free(symbolstack_t *st) {
   free(st->symbolstack);
+  st->symbolstack = NULL;
+  st->maxlen = 0;
+  st->top = 0;
 }
 
 int symbolstack_neles(symbolstack_t *st) {

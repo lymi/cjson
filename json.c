@@ -24,7 +24,7 @@ json_node_t *json_parse(jsonstr_t *string) {
   symbolstack_t st;
   symbolstack_init(&st, 128);
   json_node_t *jnode = json_parse_step(string, &st);
-  symbolstack_del(&st);
+  symbolstack_free(&st);
   return jnode;
 }
 
