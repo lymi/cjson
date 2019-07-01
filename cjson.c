@@ -1,8 +1,8 @@
-#include "json.h"
+#include "./include/cjson.h"
 
 #define JSNULL "null"
 
-static json_node_t *json_parse_step(jsonstr_t *str, symbolstack_t *symbolstack);
+static json_node_t *json_parse_step(jsonstr_t *str, stack_t *stack);
 static void handle_number(char *pi, char *pj, json_node_t *jnode);
 static void handle_numarr(json_node_t *jnode, char *pj, char *pk, int arrlen, int idx);
 static int isnull(char *pi);
@@ -21,14 +21,14 @@ json_node_t *json_parse(jsonstr_t *string) {
     printf("ERROR:: invalid json string.\n");
     return NULL;
   }
-  symbolstack_t st;
-  symbolstack_init(&st, 128);
+  stack_t st;
+  stack_init(&st, 128, STACK_CHAR, 0);
   json_node_t *jnode = json_parse_step(string, &st);
-  symbolstack_free(&st);
+  stack_free(&st);
   return jnode;
 }
 
-static json_node_t *json_parse_step(jsonstr_t *pi, symbolstack_t *symbolstack) {
+static json_node_t *json_parse_step(jsonstr_t *pi, stack_t *stack) {
   json_node_t *jnode = (json_node_t *)malloc(sizeof(json_node_t));
   char *pj, *pk, *segment;
   int cnt = 0, arrlen = 1, idx = 0, iskey = TRUE, isnum = FALSE, 
@@ -67,12 +67,12 @@ static json_node_t *json_parse_step(jsonstr_t *pi, symbolstack_t *symbolstack) {
         jnode->value.jnodearr[idx++] = json_parse(pi);
         continue;
       } else if (**pi == '\"') {
-        if (symbolstack_get(symbolstack) != '\"') {
-          symbolstack_push(symbolstack, '\"');
+        if (stack_getchar(stack) != '\"') {
+          stack_pushchar(stack, '\"');
           pj = *pi;
           isstrarr = TRUE;
         } else {
-          symbolstack_pop(symbolstack);
+          stack_pop(stack);
           pk = *pi;
           isstrarr = FALSE;
           cnt = pk - pj - 1;
@@ -90,11 +90,11 @@ static json_node_t *json_parse_step(jsonstr_t *pi, symbolstack_t *symbolstack) {
           handle_numarr(jnode, pj, pk, arrlen, idx++);
         }
       } else if (**pi == ']') {
-        if (symbolstack_get(symbolstack) != '[') {
+        if (stack_getchar(stack) != '[') {
           printf("ERROR::json_parse() error, unexpected ']'.\n");
           return NULL;
         }
-        symbolstack_pop(symbolstack);
+        stack_pop(stack);
         isarr = FALSE;
         pk = *pi;
 
@@ -113,7 +113,7 @@ static json_node_t *json_parse_step(jsonstr_t *pi, symbolstack_t *symbolstack) {
 
     if (**pi == '{') {
       if (iskey) { // not really a key, meaning just entered a json object
-        symbolstack_push(symbolstack, '{');
+        stack_pushchar(stack, '{');
       } else {
         jnode->type = JSON_OBJECT;
         jnode->value.child = json_parse(pi);
@@ -121,16 +121,16 @@ static json_node_t *json_parse_step(jsonstr_t *pi, symbolstack_t *symbolstack) {
       }
     } else if (**pi == '[') {
       jnode->type = JSON_ARRAY;
-      symbolstack_push(symbolstack, '[');
+      stack_pushchar(stack, '[');
       isarr = TRUE;
       idx = 0;
     } else if (**pi == '\"') {
-      if (symbolstack_get(symbolstack) != '\"') {
-        symbolstack_push(symbolstack, '\"');
+      if (stack_getchar(stack) != '\"') {
+        stack_pushchar(stack, '\"');
         pj = *pi;
         isstr = TRUE;
       } else {
-        symbolstack_pop(symbolstack);
+        stack_pop(stack);
         isstr = FALSE;
         pk = *pi;
         cnt = pk - pj - 1;
@@ -147,11 +147,11 @@ static json_node_t *json_parse_step(jsonstr_t *pi, symbolstack_t *symbolstack) {
         }
       }
     } else if (**pi == '}') {
-      if (symbolstack_get(symbolstack) != '{') {
+      if (stack_getchar(stack) != '{') {
         printf("ERROR::json_parse() error, unexpected '}'.\n");
         return NULL;
       }
-      symbolstack_pop(symbolstack);
+      stack_pop(stack);
       pk = *pi;
       if (isnum) {
         isnum = FALSE;
@@ -168,7 +168,7 @@ static json_node_t *json_parse_step(jsonstr_t *pi, symbolstack_t *symbolstack) {
       }
 
       (*pi)++;
-      jnode->next = json_parse_step(pi, symbolstack);
+      jnode->next = json_parse_step(pi, stack);
       jnode->next->prev = jnode;
       continue;
     } else if (!isstr && !isnum) {
@@ -186,7 +186,7 @@ static json_node_t *json_parse_step(jsonstr_t *pi, symbolstack_t *symbolstack) {
     }
 
     (*pi)++;
-  } while (symbolstack_neles(symbolstack) != 0);
+  } while (stack_count(stack) != 0);
   
   return jnode;
 }

@@ -1,4 +1,4 @@
 #!/bin/bash
-gcc -o test.o test.c ../json.c ../modules/symbolstack/symbolstack.c
+gcc -o test.o test.c ../build/cjson.so ../lib/stack.so
 ./test.o
 

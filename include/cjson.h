@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "./modules/symbolstack/symbolstack.h"
+#include "stack.h"
 
 #define JSON_NULL 0
 #define JSON_INT 1

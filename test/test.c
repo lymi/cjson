@@ -1,4 +1,4 @@
-#include "../json.h"
+#include "../include/cjson.h"
 
 int main() {
   char ret[1024] = {'\0'};
