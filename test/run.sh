@@ -1,4 +1,4 @@
 #!/bin/bash
-gcc -o test.o test.c ../build/cjson.so ../lib/stack.so
+gcc -o test.o test.c ../lib/*.so
 ./test.o
 

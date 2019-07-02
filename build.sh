@@ -1,3 +1,3 @@
 #!/bin/bash
-gcc -fPIC -shared -o cjson.so ../cjson.c ../lib/stack.so
+gcc -fPIC -shared -o ./lib/cjson.so ./cjson.c
 
