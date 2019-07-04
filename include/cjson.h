@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "stack.h"
+#include "zju_stack.h"
 
 #define JSON_NULL 0
 #define JSON_INT 1

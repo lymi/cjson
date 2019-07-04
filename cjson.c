@@ -2,7 +2,7 @@
 
 #define JSNULL "null"
 
-static json_node_t *json_parse_step(jsonstr_t *str, stack_t *stack);
+static json_node_t *json_parse_step(jsonstr_t *str, zju_stack_t *stack);
 static void handle_number(char *pi, char *pj, json_node_t *jnode);
 static void handle_numarr(json_node_t *jnode, char *pj, char *pk, int arrlen, int idx);
 static int isnull(char *pi);
@@ -22,14 +22,14 @@ json_node_t *json_parse(jsonstr_t *string) {
     return NULL;
   }
 
-  stack_t st;
+  zju_stack_t st;
   stack_init(&st, 128, STACK_CHAR, 0);
   json_node_t *jnode = json_parse_step(string, &st);
   stack_free(&st);
   return jnode;
 }
 
-static json_node_t *json_parse_step(jsonstr_t *pi, stack_t *stack) {
+static json_node_t *json_parse_step(jsonstr_t *pi, zju_stack_t *stack) {
   json_node_t *jnode = (json_node_t *)malloc(sizeof(json_node_t));
   char *pj, *pk, *segment;
   int cnt = 0, arrlen = 0, idx = 0, iskey = TRUE, isnum = FALSE, 
