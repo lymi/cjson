@@ -7,7 +7,7 @@ static void handle_number(char *pi, char *pj, json_node_t *jnode);
 static void handle_numarr(json_node_t *jnode, char *pj, char *pk, int arrlen, int idx);
 static int isnull(char *pi);
 static void json_print_step(json_node_t *jnode, int indent);
-static void handle_arrprint(json_node_t *jnode, int indent);
+static void printarray(json_node_t *jnode, int indent);
 static void json_free_step(json_node_t *jnode);
 
 static int TRUE = 1;
@@ -17,10 +17,11 @@ static int FALSE = 0;
  *         json_parse() start         *
  **************************************/
 json_node_t *json_parse(jsonstr_t *string) {
-  if (strcmp(*string, "") == 0) {
+  if (**string != '{') {
     printf("ERROR:: invalid json string.\n");
     return NULL;
   }
+
   stack_t st;
   stack_init(&st, 128, STACK_CHAR, 0);
   json_node_t *jnode = json_parse_step(string, &st);
@@ -31,19 +32,25 @@ json_node_t *json_parse(jsonstr_t *string) {
 static json_node_t *json_parse_step(jsonstr_t *pi, stack_t *stack) {
   json_node_t *jnode = (json_node_t *)malloc(sizeof(json_node_t));
   char *pj, *pk, *segment;
-  int cnt = 0, arrlen = 1, idx = 0, iskey = TRUE, isnum = FALSE, 
+  int cnt = 0, arrlen = 0, idx = 0, iskey = TRUE, isnum = FALSE, 
       isstr = FALSE, isarr = FALSE, isstrarr = FALSE, isnumarr = FALSE;
 
   jnode->next = NULL;
   jnode->prev = NULL;
   jnode->key = NULL;
   jnode->type = JSON_EMPTY;
+  jnode->value.objarr = NULL;
 
   do {
     if (isarr) {
-      if (arrlen == 1) {
+      if (arrlen == 0) {
         char *pt = *pi;
         int depth = 0;
+
+        if (*pt != ']') {
+          arrlen = 1;
+        }
+
         while(*pt != ']') {
           if (*pt == '{') {
             depth ++;
@@ -56,15 +63,27 @@ static json_node_t *json_parse_step(jsonstr_t *pi, stack_t *stack) {
           }
           pt++;
         }
+
         jnode->arrlen = arrlen;
       }
 
       if (**pi == '{' || isnull(*pi)) {
-        if (jnode->value.jnodearr == NULL) {
+        if (jnode->value.objarr == NULL) {
           jnode->type = JSON_ARRAY_OBJECT;
-          jnode->value.jnodearr = (json_node_t **)calloc(arrlen, sizeof(void *));
+          jnode->value.objarr = (json_node_t **)calloc(arrlen, sizeof(void *));
         }
-        jnode->value.jnodearr[idx++] = json_parse(pi);
+
+        if (**pi == '{') {
+          jnode->value.objarr[idx++] = json_parse(pi);
+        } else if (isnull(*pi)) {
+          json_node_t *nullobj = (json_node_t *)malloc(sizeof(json_node_t));
+          nullobj->key = NULL;
+          nullobj->prev = NULL;
+          nullobj->next = NULL;
+          nullobj->type = JSON_NULL;
+          jnode->value.objarr[idx++] = nullobj;
+          (*pi)+=4;
+        }
         continue;
       } else if (**pi == '\"') {
         if (stack_getchar(stack) != '\"') {
@@ -80,7 +99,10 @@ static json_node_t *json_parse_step(jsonstr_t *pi, stack_t *stack) {
           strncpy(segment, pj + 1, cnt);
           segment[cnt] = '\0';
 
-          jnode->type = JSON_ARRAY_STRING;
+          if (jnode->value.stringarr == NULL) {
+            jnode->type = JSON_ARRAY_STRING;
+            jnode->value.stringarr = (char **)calloc(arrlen, sizeof(void *));
+          }
           jnode->value.stringarr[idx++] = segment;
         }
       } else if (**pi == ',') {
@@ -112,11 +134,11 @@ static json_node_t *json_parse_step(jsonstr_t *pi, stack_t *stack) {
     }
 
     if (**pi == '{') {
-      if (iskey) { // not really a key, meaning just entered a json object
+      if (iskey) { // a json object begins
         stack_pushchar(stack, '{');
       } else {
         jnode->type = JSON_OBJECT;
-        jnode->value.child = json_parse(pi);
+        jnode->value.objval = json_parse(pi);
         continue;
       }
     } else if (**pi == '[') {
@@ -175,13 +197,10 @@ static json_node_t *json_parse_step(jsonstr_t *pi, stack_t *stack) {
       if ((**pi >= '0' && **pi <= '9') || **pi == '.'){
         isnum = TRUE;
         pj = *pi;
-      } else {
-        // js null value
-        if (isnull(*pi)) {
-          jnode->type = JSON_NULL;
-          (*pi)+=4;
-          continue;
-        }
+      } else if (isnull(*pi)) {
+        jnode->type = JSON_NULL;
+        (*pi)+=4;
+        continue;
       }
     }
 
@@ -216,15 +235,15 @@ static void handle_numarr(json_node_t *jnode, char *pj, char *pk, int arrlen, in
 
   if (index(temp, '.')) {
     if (jnode->value.doublearr == NULL) {
+      jnode->type = JSON_ARRAY_DOUBLE;
       jnode->value.doublearr = (double *)calloc(arrlen, sizeof(double));
     }
-    jnode->type = JSON_ARRAY_DOUBLE;
     jnode->value.doublearr[idx] = atof(temp);
   } else {
     if (jnode->value.intarr == NULL) {
+      jnode->type = JSON_ARRAY_INT;
       jnode->value.intarr = (int *)calloc(arrlen, sizeof(int));
     }
-    jnode->type = JSON_ARRAY_INT;
     jnode->value.intarr[idx] = atoi(temp);
   }
 }
@@ -251,13 +270,13 @@ void json_print(json_node_t *jnode) {
 static void json_print_step(json_node_t *jnode, int indent) {
   int type = jnode->type;
 
-  if (type == JSON_EMPTY) {
-    printf("{}");
+  if (type == JSON_NULL && jnode->key == NULL) {
+    printf("null");
     return;
   }
 
-  if (type == JSON_ARRAY && jnode->key == NULL) {
-    printf("[]");
+  if (type == JSON_EMPTY) {
+    printf("{}");
     return;
   }
 
@@ -265,8 +284,9 @@ static void json_print_step(json_node_t *jnode, int indent) {
     printf("{\n");
   }
 
-  for (int i = 0; i < indent + 2; i++)
+  for (int i = 0; i < indent + 2; i++) {
     printf(" ");
+  }
 
   switch (type) {
     case JSON_INT:
@@ -280,23 +300,20 @@ static void json_print_step(json_node_t *jnode, int indent) {
       break;
     case JSON_OBJECT:
       printf("%s: ", jnode->key);
-      json_print_step(jnode->value.child, indent + 2);
+      json_print_step(jnode->value.objval, indent + 2);
       break;
     case JSON_NULL:
-      if (jnode->key == NULL) {
-        printf("null");
-      } else {
-        printf("%s: null", jnode->key);
-      }
+      printf("%s: null", jnode->key);
       break;
     default:
-      handle_arrprint(jnode, indent);
+      printarray(jnode, indent);
   }
 
   if (jnode->next == NULL) {
     printf("\n");
-    for (int i = 0; i < indent; i++)
+    for (int i = 0; i < indent; i++) {
       printf(" ");
+    }
     printf("}");
   } else {
     printf(",\n");
@@ -304,7 +321,7 @@ static void json_print_step(json_node_t *jnode, int indent) {
   }
 }
 
-static void handle_arrprint(json_node_t *jnode, int indent) {
+static void printarray(json_node_t *jnode, int indent) {
   int type = jnode->type;
 
   printf("%s: [", jnode->key);
@@ -321,12 +338,12 @@ static void handle_arrprint(json_node_t *jnode, int indent) {
         printf("%s", jnode->value.stringarr[i]);
         break;
       case JSON_ARRAY_OBJECT:
-        json_print_step(jnode->value.jnodearr[i], indent + 2);
+        json_print_step(jnode->value.objarr[i], indent + 2);
         break;
     }
 
     if (i < jnode->arrlen - 1) {
-      printf(",");
+      printf(", ");
     }
   }
   printf("]");
@@ -359,13 +376,14 @@ json_node_t *json_create(json_node_t data[], int n) {
 void json_stringify(json_node_t *jnode, char ret[]) {
   assert(jnode != NULL);
   int type = jnode->type;
-  if (type == JSON_EMPTY) {
-    strcat(ret, "{}");
-    return;
-  }
 
   if (type == JSON_NULL && jnode->key == NULL) {
     strcat(ret, "null");
+    return;
+  }
+
+  if (type == JSON_EMPTY) {
+    strcat(ret, "{}");
     return;
   }
 
@@ -390,7 +408,7 @@ void json_stringify(json_node_t *jnode, char ret[]) {
       strcat(ret, temp);
       break;
     case JSON_OBJECT:
-      json_stringify(jnode->value.child, ret);
+      json_stringify(jnode->value.objval, ret);
       break;
     case JSON_NULL:
       strcat(ret, "null");
@@ -412,7 +430,7 @@ void json_stringify(json_node_t *jnode, char ret[]) {
             strcat(ret, temp);
             break;
           case JSON_ARRAY_OBJECT:
-            json_stringify(jnode->value.jnodearr[i], ret);
+            json_stringify(jnode->value.objarr[i], ret);
             break;
         }
 
@@ -458,7 +476,7 @@ static void json_free_step(json_node_t *jnode) {
       free(jnode->value.stringval);
       break;
     case JSON_OBJECT:
-      json_free(&(jnode->value.child));
+      json_free(&(jnode->value.objval));
       break;
     case JSON_ARRAY_INT:
       free(jnode->value.intarr);
@@ -474,9 +492,9 @@ static void json_free_step(json_node_t *jnode) {
       break;
     case JSON_ARRAY_OBJECT:
       for (int i = 0; i < jnode->arrlen; i++) {
-        json_free(&(jnode->value.jnodearr[i]));
+        json_free(&(jnode->value.objarr[i]));
       }
-      free(jnode->value.jnodearr);
+      free(jnode->value.objarr);
       break;
   }
 

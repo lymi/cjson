@@ -35,11 +35,11 @@ typedef struct json_node {
     char *stringval;
     int intval;
     double doubleval;
-    struct json_node *child;
+    struct json_node *objval;
     int *intarr;
     double *doublearr;
     char **stringarr;
-    struct json_node **jnodearr;
+    struct json_node **objarr;
   } value;
 } json_node_t;
 
