@@ -24,9 +24,9 @@ typedef char * jsonstr_t;
  * "jnode->type == CJSON_TYPE_NULL" stands for js null value
  * "jnode->type == CJSON_TYPE_ARRAY" stands for empty js array
  */
-typedef struct cj_node {
-  struct cj_node *prev;
-  struct cj_node *next;
+typedef struct cjson_node {
+  struct cjson_node *prev;
+  struct cjson_node *next;
   int type;
   int arrlen;
   char *key;
@@ -35,17 +35,17 @@ typedef struct cj_node {
     char *stringval;
     int intval;
     double doubleval;
-    struct cj_node *objval;
+    struct cjson_node *objval;
     int *intarr;
     double *doublearr;
     char **stringarr;
-    struct cj_node **objarr;
+    struct cjson_node **objarr;
   } value;
-} cj_node_t;
+} cjson_node_t;
 
-cj_node_t *cj_parse(char **string);
-cj_node_t *cj_create(cj_node_t data[], int n);
-void cj_print(cj_node_t *jnode);
-void cj_stringify(cj_node_t *jnode, char ret[]);
-void cj_free(cj_node_t **jnode); // only for deallocating jnode created by cj_parse()
+cjson_node_t *cjson_parse(char **string);
+cjson_node_t *cjson_create(cjson_node_t data[], int n);
+void cjson_print(cjson_node_t *jnode);
+void cjson_stringify(cjson_node_t *jnode, char ret[]);
+void cjson_free(cjson_node_t **jnode); // only for deallocating jnode created by cjson_parse()
 
